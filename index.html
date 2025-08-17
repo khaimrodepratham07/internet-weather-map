@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Internet Weather Map</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f4f8;
+            color: #333;
+        }
+        #map {
+            height: 300px;
+            width: 100%;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .info-box {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e2e8f0;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #4a5568;
+        }
+        .info-box b {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 1.2rem;
+            color: #2d3748;
+        }
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-size: 0.9rem;
+        }
+        .legend-item {
+            margin-bottom: 5px;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Internet Weather Map</h1>
+    <p>Click on any location on the map to see the generated internet performance data.</p>
+    
+    <div id="map"></div>
+    <div class="legend">
+        <b>Status</b>
+        <div class="legend-item">🟢 Good (Latency &lt; 50ms)</div>
+        <div class="legend-item">🟡 Acceptable (50-150ms)</div>
+        <div class="legend-item">🔴 Poor (Latency &gt; 150ms or loss &gt; 10%)</div>
+    </div>
+
+    <div id="data-display" class="info-box">
+        <b>Click a location on the map to see data</b>
+    </div>
+    
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        window.onload = function() {
+            // --- Map Initialization ---
+            var map = L.map('map').setView([20.5937, 78.9629], 4); // Centered on India
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            let clickMarker = null;
+
+            // Listen for map clicks
+            map.on('click', function(e) {
+                const lat = e.latlng.lat;
+                const lon = e.latlng.lng;
+                const dataDisplay = document.getElementById('data-display');
+
+                // Remove previous marker if it exists
+                if (clickMarker) {
+                    map.removeLayer(clickMarker);
+                }
+
+                // Show a loading indicator
+                dataDisplay.innerHTML = '<b>Generating data...</b><br><div class="loader"></div>';
+
+                // Add a new marker at the clicked location
+                clickMarker = L.marker([lat, lon]).addTo(map);
+
+                // Fetch data from the new backend endpoint
+                fetch('http://127.0.0.1:8000/generate-measurement', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ latitude: lat, longitude: lon })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Update the info box with the generated data
+                    const { location_name, latency_ms, jitter_ms, packet_loss_pct } = data;
+                    let dataHtml = `<b>Latest Measurement for ${location_name}:</b><br>`;
+                    dataHtml += `Latitude: ${lat.toFixed(2)}, Longitude: ${lon.toFixed(2)}<br>`;
+                    dataHtml += `Latency: ${latency_ms.toFixed(2)} ms<br>`;
+                    dataHtml += `Jitter: ${jitter_ms.toFixed(2)} ms<br>`;
+                    dataHtml += `Packet Loss: ${(packet_loss_pct * 100).toFixed(1)}%`;
+                    dataDisplay.innerHTML = dataHtml;
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                    dataDisplay.innerHTML = '<b>Failed to generate data.</b><br>Please ensure the backend is running.';
+                });
+            });
+        };
+    </script>
+</body>
+</html>
