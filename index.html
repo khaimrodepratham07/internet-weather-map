@@ -115,7 +115,7 @@
                 clickMarker = L.marker([lat, lon]).addTo(map);
 
                 // Fetch data from the new backend endpoint
-                fetch('http://api/generate-measurement', {
+                fetch('/api/generate-measurement', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ latitude: lat, longitude: lon })
